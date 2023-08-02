@@ -1,0 +1,62 @@
+---
+title: 'ISR en Next js 13.2.4'
+date: '2023-08-01'
+---
+
+Implementar *ISR (Incremental Static Regeneration)*  ayuda a revalidar los cambios en el sistema y mostrarlos sin tener que hacer el **_deploy_** manualmente. 
+
+Implementamos la siguiente variable reservada en `layout.tsx` o `page.tsx`
+
+```tsx
+// Tiempo en segundos (1 día = 86400)
+export const revalidate = 10;
+```
+
+Con esto ya podemos revalidar el contenido, para testear esto necesitamos estar en un entorno de producción, es decir que debemos ejecutar `npm run build && npm run start`.  
+Sin embargo, los cambios se muestran en pantalla después del **segundo reload**, es decir, debemos refrescar la página 2 veces para ver los cambios.
+
+---
+## Revalidación **_On-demand_**
+
+Si lo que buscamos es revalidar al **primer reaload**, debemos hacer un par de cosas más.  
+Creamos una carpeta al mismo nivel que el `app` llamada `pages/api` con un archivo llamado `revalidate.ts`, una vez dentro escribimos el siguiente código:
+
+```ts
+import { NextApiRequest, NextApiResponse } from "next";
+
+export default async function handler(
+    req: NextApiRequest,
+    res: NextApiResponse
+) {
+    // Lo ideal es usar un try catch, solo que en modo de práctica 
+    // no lo estamos usando para ver los errores en la consola
+    if (req.query.secret !== process.env.MY_SECRET_TOKEN) {
+        return res.status(401).json({
+            message: "Invalid token"
+        })
+    }
+
+    const path = req.query.path as string;
+
+    await res.revalidate(path)
+
+    return res.json({
+        revalidated: true
+    })
+}
+```
+
+Con este código permitidos **también** la revalidación **_on-demand_**, es decir, manualmente nosotros podemos hacer una revalidación haciendo una petición a una determinada _URL_ la cual debe verse de la siguiente forma:
+
+```txt
+// URL de revalidación, en el path decimos las urls que queremos
+// revalidar, en este caso solo la Home Page, también debemos 
+// pasarle nuestro token de la variable de entorno
+
+// https://<your-site.com>/api/revalidate?path=/secret=<token>
+// http://localhost:3000/api/revalidate?path=/&secret=AndreMoralesCode
+```
+
+Podemos usar aplicaciones como _ThunderClient_ o _Postman_ para revalidar de forma manual, solo debemos hacer un **_GET_** con el formato correcto a nuestra _URL_ y los cambios se verán reflejados en un solo **reload**.
+
+Posdata: La revalidación **_on-demand_** muy seguramente cambie en futuras versiones.
